@@ -41,12 +41,15 @@ tNikonLens NikonLens;
 
 void tNikonLens::begin(
 	const u8 handshakePin_In,
-	const u8 handsahkePin_Out
+	const u8 handshakePin_Out
 	)
 {
-	m_handshakePin_In  = handshakePin_In;
-	m_handshakePin_Out = handsahkePin_Out;
+	// m_handshakePin_In  = handshakePin_In;
+	// m_handshakePin_Out = handshakePin_Out;
 	
+	m_handshakePin_In  = 3;
+	m_handshakePin_Out = 4;
+
 	pinMode(m_handshakePin_In,  INPUT_PULLUP);
 	pinMode(m_handshakePin_Out, OUTPUT);
 	
@@ -89,19 +92,33 @@ tNikonLens::tResultCode tNikonLens::sendCommand(
 	// Receive data from lens, if any
 	for(u8 i = 0; i < byteCountFromLens; i++) {
 		//todo: Wait 5ms for lens to assert H/S
-		while(!isHandshakeAsserted());
+
+		long int assert_time = micros();
+		while ((micros() - assert_time < 5000) && (!isHandshakeAsserted()));
+		
+		
+		// while(!isHandshakeAsserted());
 		bytesFromLens[i] = SPI.transfer(0x00);
 		//todo: Wait 5ms (?) for lens to release H/S
-		while(isHandshakeAsserted());
+		// while(isHandshakeAsserted());
+		assert_time = micros();
+		// while ((micros() - assert_time < 5000) && (isHandshakeAsserted()));
+		while (isHandshakeAsserted());
 	}
 	
 	// Send data to lens, if any
 	for(u8 i = 0; i < byteCountToLens; i++) {
 		//todo: Wait 5ms for lens to assert H/S
-		while(!isHandshakeAsserted());
+		// while(!isHandshakeAsserted());
+
+		long int assert_time = micros();
+		while ((micros() - assert_time < 5000) && (!isHandshakeAsserted()));
 		SPI.transfer(~bytesToLens[i]);
 		//todo: Wait 5ms (?) for lens to release H/S
-		while(isHandshakeAsserted());
+		// while(isHandshakeAsserted());
+		assert_time = micros();
+		// while ((micros() - assert_time < 5000) && (isHandshakeAsserted()));
+		while (isHandshakeAsserted());
 	}
 	
 	return Success;

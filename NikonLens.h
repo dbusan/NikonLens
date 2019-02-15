@@ -48,8 +48,9 @@ namespace lain {
  *  - MISO (12) is connected to the lens Data line, which must be pulled high.
  *  - MOSI (11) drives the lens Data line through a transistor, open-collector.\n
  *    So: MOSI -> Base, Data -> Collector, GND -> Emitter
- *  - handshakePin_In  is connected directly to lens H/S
- *  - handshakePin_Out drives lens H/S through a transistor, open-collector.
+ *  - handshakePin_In  is connected directly to lens H/S - PIN 3 - PD0
+ *  - handshakePin_Out drives lens H/S through a transistor, open-collector. - PIN 4 - PD4
+ *  - 
  *
  * NOTE: The Nikon D5100 starts communication with the lens at 96kHz, then
  *       increases speed to 156kHz if the lens supports it. Because the
@@ -117,7 +118,14 @@ private:
 	void assertHandshake(u16 microseconds);
 	//! Shortcut to read handshake value
 	/*! \returns \c true if H/S is asserted (low), \c false otherwise. */
-	bool isHandshakeAsserted() const { return 0 == digitalRead(m_handshakePin_In); }
+	// bool isHandshakeAsserted() const { return 0 == digitalRead(m_handshakePin_In); }
+
+	bool isHandshakeAsserted() const { return 0 == ((PIND & (1<<PIND0))>>PIND0); }
+
+	// bool isHandshakeAsserted() const {
+	// 	long assert_start = micros();
+	// 	return (0 == digitalRead(m_handshakePin_In)) || ((micros() - assert_start) >= 5000); 
+	// }
 };
 
 // Global instance, because I'm a terrible person
