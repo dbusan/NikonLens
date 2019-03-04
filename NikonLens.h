@@ -33,8 +33,6 @@
 
 #include <numeric.h>
 
-namespace lain {
-
 //! Control Nikon F-mount lenses from an Arduino
 /*! Nikon lenses use a modified version of SPI.
  * See also:
@@ -46,7 +44,8 @@ namespace lain {
  *  - SS   (10) is unused.
  *  - SCK  (13) is connected directly to lens SCLK.
  *  - MISO (12) is connected to the lens Data line, which must be pulled high.
- *  - MOSI (11) drives the lens Data line through a transistor, open-collector.\n
+ *  - MOSI (11) drives the lens Data line through a transistor, open-collector.
+ * 
  *    So: MOSI -> Base, Data -> Collector, GND -> Emitter
  *  - handshakePin_In  is connected directly to lens H/S - PIN 3 - PD0
  *  - handshakePin_Out drives lens H/S through a transistor, open-collector. - PIN 4 - PD4
@@ -55,13 +54,15 @@ namespace lain {
  * NOTE: The Nikon D5100 starts communication with the lens at 96kHz, then
  *       increases speed to 156kHz if the lens supports it. Because the
  *       Arduino runs at 16MHz and the maximum divider ratio for SPI is
- *       128, the slowest we can run the bus is 125kHz.\n
+ *       128, the slowest we can run the bus is 125kHz.
+ * 
  *       If using this code with older lenses causes problems, it should
  *       be modified to use the AVR's System Clock Prescaler to drop the CPU
- *       frequency so you can achieve a slower SPI bus speed.\n
+ *       frequency so you can achieve a slower SPI bus speed.
+ * 
  *       I haven't tested this, it may interfere with other Arduino features.
  */
-class tNikonLens
+class NikonLens_Class
 {
 public:
 	//! Possible result codes for commands
@@ -79,6 +80,7 @@ public:
 		u8 handshakePin_In,
 		u8 handshakePin_Out
 		);
+
 	//! Tear down, relinquish resources.
 	void end();
 	
@@ -118,8 +120,9 @@ private:
 	void assertHandshake(u16 microseconds);
 	//! Shortcut to read handshake value
 	/*! \returns \c true if H/S is asserted (low), \c false otherwise. */
-	// bool isHandshakeAsserted() const { return 0 == digitalRead(m_handshakePin_In); }
 
+	// bool isHandshakeAsserted() const { return 0 == digitalRead(m_handshakePin_In); } // 
+	// replaced digitalRead with this 
 	bool isHandshakeAsserted() const { return 0 == ((PIND & (1<<PIND0))>>PIND0); }
 
 	// bool isHandshakeAsserted() const {
@@ -128,10 +131,7 @@ private:
 	// }
 };
 
-// Global instance, because I'm a terrible person
-extern tNikonLens NikonLens;
-
-}	/* namespace lain */
+extern NikonLens_Class NikonLens;
 
 #endif /* NIKONLENS_H_ */
 

@@ -1,6 +1,13 @@
 /*
  * NikonLens.cpp
  *
+ *  Author: D Busan
+ *  Created: 2019/03/04 
+ *  
+ *  contact@dbusan.com
+ * 
+ * 
+ *  Original Copyright notice:
  *  Created: 11/14/2013 02:45:51
  *
  *  Lain A.
@@ -35,11 +42,9 @@
 
 #include "NikonLens.h"
 
-namespace lain {
+NikonLens_Class NikonLens;
 
-tNikonLens NikonLens;
-
-void tNikonLens::begin(
+void NikonLens_Class::begin(
 	const u8 handshakePin_In,
 	const u8 handshakePin_Out
 	)
@@ -64,14 +69,14 @@ void tNikonLens::begin(
 	SPI.begin();
 }
 
-void tNikonLens::end()
+void NikonLens_Class::end()
 {
 	SPI.end();
 	//todo: should we do anything with the handshake pins?
 }
 
 
-tNikonLens::tResultCode tNikonLens::sendCommand(
+NikonLens_Class::tResultCode NikonLens_Class::sendCommand(
 	const u8  cmd,
 	const u8  byteCountFromLens,
 	u8* const bytesFromLens,
@@ -82,28 +87,32 @@ tNikonLens::tResultCode tNikonLens::sendCommand(
 	assertHandshake(100/*us*/);
 	//todo: Wait 1.6ms for lens to ack, should use interrupts
 	while(!isHandshakeAsserted());
-	//todo: by reading the returned byte we can detect
-	// wiring errors. I wonder if we could also detect
-	// if the lens tried to say 0xFF while we transmitted data...
+	
+	// the command is ~ - notted - because the MOSI pin is connected to data line of lens
+	// through the base -> collector of a transistor 
 	SPI.transfer(~cmd);
-	//todo: Wait 1.6ms for lens to release H/S
+	
+	// TODO: check assertion timeouts 
 	while(isHandshakeAsserted());
 	
 	// Receive data from lens, if any
 	for(u8 i = 0; i < byteCountFromLens; i++) {
-		//todo: Wait 5ms for lens to assert H/S
+		//TODO: Wait 5ms for lens to assert H/S
 
 		long int assert_time = micros();
+
+		// TODO: if assert time is greater than 5000 should stop receiving.
 		while ((micros() - assert_time < 5000) && (!isHandshakeAsserted()));
 		
 		
 		// while(!isHandshakeAsserted());
 		bytesFromLens[i] = SPI.transfer(0x00);
 		//todo: Wait 5ms (?) for lens to release H/S
-		// while(isHandshakeAsserted());
-		assert_time = micros();
-		// while ((micros() - assert_time < 5000) && (isHandshakeAsserted()));
 		while (isHandshakeAsserted());
+
+		// assert_time = micros();
+		// while ((micros() - assert_time < 5000) && (isHandshakeAsserted()));
+		
 	}
 	
 	// Send data to lens, if any
@@ -125,13 +134,11 @@ tNikonLens::tResultCode tNikonLens::sendCommand(
 }
 
 
-void tNikonLens::assertHandshake(u16 microseconds)
+void NikonLens_Class::assertHandshake(u16 microseconds)
 {
 	digitalWrite(m_handshakePin_Out, 1);
 	delayMicroseconds(microseconds);
 	digitalWrite(m_handshakePin_Out, 0);
 }
-
-}	/* namespace lain */
 
 //eof
