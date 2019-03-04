@@ -31,6 +31,12 @@
 #ifndef NIKONLENS_H_
 #define NIKONLENS_H_
 
+// known commands
+#define CMD_GET_INFO      0x28
+#define CMD_FOCUS_INFO    0x26
+#define CMD_START_FOCUS   0xE0
+#define CMD_SET_APERTURE  0xDA
+
 #include <numeric.h>
 
 //! Control Nikon F-mount lenses from an Arduino
@@ -62,10 +68,38 @@
  * 
  *       I haven't tested this, it may interfere with other Arduino features.
  */
+
+namespace lens {
+
+enum ApertureValue {
+	F1_4,
+	F1_6,
+	F1_8,
+	F2_0,
+	F2_2,
+	F2_5,
+	F2_8,
+	F3_2,
+	F3_5,
+	F4_0,
+	F4_5,
+	F5_0,
+	F5_6,
+	F6_3,
+	F7_1,
+	F8_0,
+	F9_0,
+	F10_0,
+	F11_0,
+	F13_0,
+	F14_0,
+	F16_0
+};
+
 class NikonLens_Class
 {
 public:
-	//! Possible result codes for commands
+	// Possible result codes for commands
 	enum tResultCode {
 		Success,
 		Timeout
@@ -110,10 +144,28 @@ public:
 		u8  byteCountToLens = 0,
 		u8 const* bytesToLens = nullptr
 		);
+
+	
+	tResultCode setAperture(
+		ApertureValue aperture
+	);
+
+
 	
 private:
 	u8 m_handshakePin_In;
 	u8 m_handshakePin_Out;
+
+	// input buffer 
+	u8 inputBuffer[255];
+	u8 inputBuffer_length;
+
+	// output buffer 
+	u8 outputBuffer[8];
+	u8 outputBuffer_length;
+
+	// aperture value
+	ApertureValue _aperture;
 	
 	//! Assert (pull down) the H/S line for \a microseconds.
 	/*! \note This will block for the duration. */
@@ -122,16 +174,18 @@ private:
 	/*! \returns \c true if H/S is asserted (low), \c false otherwise. */
 
 	// bool isHandshakeAsserted() const { return 0 == digitalRead(m_handshakePin_In); } // 
-	// replaced digitalRead with this 
+	// replaced digitalRead with register access equivalent
 	bool isHandshakeAsserted() const { return 0 == ((PIND & (1<<PIND0))>>PIND0); }
 
-	// bool isHandshakeAsserted() const {
-	// 	long assert_start = micros();
-	// 	return (0 == digitalRead(m_handshakePin_In)) || ((micros() - assert_start) >= 5000); 
-	// }
+	/**
+	 * @brief Sends a series of commands to initialise lens
+	 * 
+	 */
+	void initLens();
 };
 
 extern NikonLens_Class NikonLens;
+} /* end namespace lens */
 
 #endif /* NIKONLENS_H_ */
 
