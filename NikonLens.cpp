@@ -47,15 +47,13 @@ namespace lens
 
 NikonLens_Class NikonLens;
 
-void NikonLens_Class::begin(
-	const u8 handshakePin_In,
-	const u8 handshakePin_Out)
+void NikonLens_Class::begin()
 {
 	// initialise input and output buffer
 	for (u8 i = 0; i < 255; i++)
 	{
 		if (i < 8)
-			outputBuffer = 0;
+			outputBuffer[i] = 0;
 		inputBuffer[i] = 0;
 	}
 	inputBuffer_length = 0;
@@ -84,6 +82,9 @@ void NikonLens_Class::begin(
 
 	// when booting, aperture will be set to F1_4 initially
 	// set aperture to f1_4
+
+	delay(50);
+	initLens();
 }
 
 void NikonLens_Class::end()
@@ -102,8 +103,7 @@ NikonLens_Class::tResultCode NikonLens_Class::sendCommand(
 {
 	assertHandshake(100 /*us*/);
 	//todo: Wait 1.6ms for lens to ack, should use interrupts
-	while (!isHandshakeAsserted())
-		;
+	while (!isHandshakeAsserted());
 
 	// the command is ~ - notted - because the MOSI pin is connected to data line of lens
 	// through the base -> collector of a transistor
@@ -121,14 +121,12 @@ NikonLens_Class::tResultCode NikonLens_Class::sendCommand(
 		long int assert_time = micros();
 
 		// TODO: if assert time is greater than 5000 should stop receiving.
-		while ((micros() - assert_time < 5000) && (!isHandshakeAsserted()))
-			;
+		while ((micros() - assert_time < 5000) && (!isHandshakeAsserted()));
 
 		// while(!isHandshakeAsserted());
 		bytesFromLens[i] = SPI.transfer(0x00);
 		//todo: Wait 5ms (?) for lens to release H/S
-		while (isHandshakeAsserted())
-			;
+		while (isHandshakeAsserted());
 
 		// assert_time = micros();
 		// while ((micros() - assert_time < 5000) && (isHandshakeAsserted()));
@@ -141,15 +139,13 @@ NikonLens_Class::tResultCode NikonLens_Class::sendCommand(
 		// while(!isHandshakeAsserted());
 
 		long int assert_time = micros();
-		while ((micros() - assert_time < 5000) && (!isHandshakeAsserted()))
-			;
+		while ((micros() - assert_time < 5000) && (!isHandshakeAsserted()));
 		SPI.transfer(~bytesToLens[i]);
 		//todo: Wait 5ms (?) for lens to release H/S
 		// while(isHandshakeAsserted());
 		assert_time = micros();
 		// while ((micros() - assert_time < 5000) && (isHandshakeAsserted()));
-		while (isHandshakeAsserted())
-			;
+		while (isHandshakeAsserted());
 	}
 
 	return Success;
@@ -165,13 +161,169 @@ NikonLens_Class::tResultCode NikonLens_Class::setAperture(
 	ApertureValue aperture
 )
 {
-	tResultCode result = Success;
+	tResultCode result;
 
 	// series of commands required to set aperture
+	result = sendCommand(CMD_SET_APERTURE, 0, nullptr,
+								  2, aperture_lookup[aperture]);
+	
 
+	// Serial.print("Aperture Payload ");
+	// for (u8 i = 0; i < 2; i++)
+	// {
+	// 	PrintHex8(aperture_lookup[aperture][i]);
+	// 	Serial.print(" ");
+	// }
+	// Serial.println();
+
+	(void)sendCommand(CMD_GET_INFO, 44, inputBuffer, 0, nullptr);
+	inputBuffer_length = 44;
 
 	return result;
 }
+
+NikonLens_Class::tResultCode NikonLens_Class::displayInfo(int code=28)
+{
+	NikonLens_Class::tResultCode result = Timeout;
+	if (code == 26) // 0x26
+	{
+		inputBuffer_length = 8;
+		result = sendCommand(CMD_FOCUS_INFO,
+							 inputBuffer_length, inputBuffer, 0, nullptr);
+		printInputBuffer();
+	}
+	else if (code == 28)
+	{
+		inputBuffer_length = 44;
+		result = sendCommand(CMD_GET_INFO,
+							 inputBuffer_length, inputBuffer, 0, nullptr);
+		printInputBuffer();
+	}
+	else if (code == 22)
+	{
+		inputBuffer_length = 30;
+		result = sendCommand(0x22,
+							 inputBuffer_length, inputBuffer, 0, nullptr);
+		printInputBuffer();
+	}
+	else
+	{
+		inputBuffer_length = 0;
+	}
+
+	return result;
+	
+}
+
+void PrintHex8(uint8_t data)
+{
+  if (data < 16) {
+    Serial.print("0");
+  };
+  Serial.print(data, HEX);
+}
+
+void NikonLens_Class::printInputBuffer()
+{
+	if (inputBuffer_length > 44) inputBuffer_length = 44;
+
+	for (u8 i = 0; i < inputBuffer_length; i++)
+	{
+		PrintHex8(inputBuffer[i]);
+	}
+	Serial.println();
+}
+
+FocusValue NikonLens_Class::getCurrentFocus()
+{
+	// search thru lookup table and find closest value
+	bool found_focus = false;
+	FocusValue focus_return = FOCUS_MIN;
+
+	// send get focus command
+	inputBuffer_length = 8;
+	(void)sendCommand(0x26, inputBuffer_length, inputBuffer, 0, nullptr);
+
+	// focus position found at bytes 3 and 5
+    int focusByte = (inputBuffer[2] << 8) + (inputBuffer[4]);
+	
+
+	u8 focus_index = 0;
+	for (u8 i = 0; i < 15; i++)
+	{
+		if (focusByte == focus_lookup[i])
+		{
+			// Serial.print("Found focus value: "); Serial.println(focus_lookup[i], HEX);
+			focus_return = (FocusValue) i; // bad practice maybe.
+			break;
+		}
+		
+		// check if focus byte value is in between lookup table values
+		if (i > 0)
+		{
+			if (focusByte > focus_lookup[i-1] && focusByte < focus_lookup[i])
+			{
+				// Serial.print("Found Focus Value in between: ");
+				// Serial.print(focus_lookup[i-1], HEX);
+				// Serial.print(" and ");
+				// Serial.println(focus_lookup[i], HEX);
+				focus_return = (FocusValue) i;
+			}
+			else if ((i == 14) && (focusByte > focus_lookup[i]))
+			{
+				// Serial.print("Focus Value larger than max\n");
+				focus_return = FOCUS_INF;
+			}
+
+		}
+	}
+
+	return focus_return;
+
+}
+
+NikonLens_Class::tResultCode NikonLens_Class::driveFocus(
+	int steps
+)
+{
+	// FOCUS COMMAND
+	// steps contains the number of steps to drive the focus by
+	// minimum is 10
+	// the rough calculation to convert number of steps to hex byte packet is:
+	// for min focus direction: packets = nr_steps >> 1;
+	// for infinity focus dirn: packets = nr_steps >> 1 then set BIT 1 to 1
+	// then the payload is as follows:
+	// 0x0E 0x00 LSB MSB where LSB and MSB are the corresponding bytes from the calculation
+	//
+	outputBuffer[0] = 0x0E;
+	outputBuffer[1] = 0x00;
+	
+	// compute step cmd byte - a 16bit number
+	int steps_backup = steps;
+	if (steps < 0) steps = -steps;
+
+	int byte_step_cmd = steps >> 1;
+	// set LSB then MSB
+	
+	outputBuffer[2] = (byte_step_cmd & 0xFF);
+	outputBuffer[3] = (byte_step_cmd >> 8);
+	outputBuffer_length = 4;
+
+	// if steps is > 0, direction bit must be flipped to drive the focus
+	// ring towards infinity focus
+	if (steps_backup > 0) outputBuffer[3] |= (1<<7);
+	
+	// before focusing, receive 8 bytes with CMD 0x26
+	// 0x26 - CMD_FOCUS_INFO returns 8 bytes correspondiong
+	// to current focus position
+	(void)sendCommand(CMD_FOCUS_INFO, 8, inputBuffer, 0, nullptr);
+	inputBuffer_length = 8;
+
+	// send focus Command 0xE0 with the 4 byte payload
+	tResultCode result = sendCommand(CMD_START_FOCUS, 0, nullptr, outputBuffer_length, outputBuffer);
+	outputBuffer_length = 0;
+}
+
 
 // privates
 void NikonLens_Class::assertHandshake(u16 microseconds)
@@ -200,13 +352,13 @@ void NikonLens_Class::initLens()
 	u8 _cmd_byte = 0x40;
 	u8 initPayload[2] = {0x02, 0x21};
 	// send byte
-	NikonLens.sendCommand(_cmd_byte, 7, inputBuffer, 2, initPayload);
+	sendCommand(_cmd_byte, 7, inputBuffer, 2, initPayload);
 	// recv 2 bytes from 0x41 - should match 2 byte send payload from 0x40
 	_cmd_byte = 0x41;
-	NikonLens.sendCommand(_cmd_byte, 2, inputBuffer, 0, nullptr);
+	sendCommand(_cmd_byte, 2, inputBuffer, 0, nullptr);
 	// cmd byte 0x40. Recv 7 bytes send 2 bytes. 
 	_cmd_byte = 0x40;
-	NikonLens.sendCommand(_cmd_byte, 7, inputBuffer, 2, initPayload);
+	sendCommand(_cmd_byte, 7, inputBuffer, 2, initPayload);
 
 
 	// CMD_GET_INFO - 0x28
