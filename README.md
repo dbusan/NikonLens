@@ -5,6 +5,7 @@ Publishing this as a starting point for others, as I have been busy elsewhere. P
 
 Based on work by myself and the developers at [Nikon Hacker].
 
+Dbusan: Tested and working with a Nikon 105mm F/1.4.
 ---
 
 Warning
